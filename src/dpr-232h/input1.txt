@@ -2,7 +2,7 @@
   :lines 2
   :rows 2
   :cols 2
-  :population
+  :voters
     [
       [2 1]
       [2 1]

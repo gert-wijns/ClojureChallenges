@@ -6,17 +6,17 @@
 (defn transpose-region [{:keys [x y length width voters]}]
   (->Region y x width length voters))
 
-(defn count-population [population-data row cols]
-  (let [row-data (nth population-data row)]
+(defn count-voters [voters-data row cols]
+  (let [row-data (nth voters-data row)]
     (->> cols
          (map #(nth row-data %))
          (reduce +))))
 
 (defn calculate-best-ratio
   "iterate rows to find the best split"
-  [population-data rows cols target-voters total-voters]
+  [voters-data rows cols target-voters total-voters]
   (reduce (fn [result row]
-            (let [left-voters (+ (count-population population-data row cols)
+            (let [left-voters (+ (count-voters voters-data row cols)
                                  (:voters result))
                   right-voters (- total-voters left-voters)
                   left-voters-diff (Math/abs (- target-voters left-voters))
@@ -48,7 +48,7 @@
           rows))
 
 (defn calculate-best-match
-  [population-data
+  [voters-data
    start-row end-row
    start-col end-col
    target-voters-a
@@ -58,9 +58,9 @@
         cols (range start-col end-col)
         {:keys [left-voters-diff left-voters left-row
                 right-voters-diff right-voters right-row]}
-        (trace (calculate-best-ratio population-data
-                                     rows cols
-                                     target-voters-a total-voters))]
+        (calculate-best-ratio voters-data
+                              rows cols
+                              target-voters-a total-voters)]
     (if (<= left-voters-diff right-voters-diff)
       [(->Region start-col start-row ncols (- left-row start-row) left-voters)
        (->Region start-col left-row ncols (- end-row left-row) (- total-voters left-voters))]
@@ -73,12 +73,12 @@
         end-col (+ x length)
         target-voters-a (* voters target-voters-a-percentage)
         [h-region-a h-region-b]
-        (calculate-best-match (:population state)
+        (calculate-best-match (:voters state)
                               y end-row x end-col
                               target-voters-a voters)
         diffH (Math/abs (- target-voters-a (:voters h-region-a)))
         [v-region-a v-region-b]
-        (calculate-best-match (:population-transposed state)
+        (calculate-best-match (:voters-transposed state)
                               x end-col y end-row
                               target-voters-a voters)
         diffV (Math/abs (- target-voters-a (:voters v-region-a)))]
@@ -88,23 +88,23 @@
 
 (defn split-region
   "Recursively splits the region into split-amount sub regions"
-  [country region n-regions]
+  [state region n-regions]
   (if (= 1.0 n-regions)
     [region]
     (let [a (Math/floor (/ n-regions 2.0))
           b (Math/ceil (/ n-regions 2.0))
           ratio (/ a (+ a b))
-          [region-a region-b] (calculate-best-split country region ratio)]
-      (concat (split-region country region-a a)
-              (split-region country region-b b)))))
+          [region-a region-b] (calculate-best-split state region ratio)]
+      (concat (split-region state region-a a)
+              (split-region state region-b b)))))
 
 (defn calculate-regions
-  [country]
-  (let [{lines :lines population :population
-         rows :rows cols :cols} country]
+  [state]
+  (let [{lines :lines voters :voters
+         rows :rows cols :cols} state]
     (split-region
-     country
-     (->Region 0 0 cols rows (->> population
+     state
+     (->Region 0 0 cols rows (->> voters
                                   (map #(reduce + %))
                                   (reduce +)))
      (inc lines))))
@@ -113,9 +113,9 @@
   (let [data (-> fileName
                  slurp                           ; read file to a string
                  read-string                     ; parse string to data structure
-                 (update-in [:population] vec))] ; change population to vectors for random access
-    (assoc data :population-transposed
-           (vec (apply map vector (:population data))))))
+                 (update-in [:voters] vec))] ; change voters to vectors for random access
+    (assoc data :voters-transposed
+           (vec (apply map vector (:voters data))))))
 
 (defn top-symbol [region-map row col]
   (if (= (get-in region-map [[(dec row) col] :region-id])
@@ -139,7 +139,7 @@
                                (= top "-") "-"
                                (= left "|") "|"
                                :else " ")
-                    :count (get-in state [:population row %])
+                    :count (get-in state [:voters row %])
                     ;:count (get-in region-map [[row %] :region-id])
                     :top top :left left})
                 (range (:cols state)))]
